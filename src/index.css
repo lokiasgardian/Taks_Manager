@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+.mouse{
+  cursor: pointer;
+}
