@@ -12,7 +12,7 @@ const Navbar = ({ currentView, onViewChange }) => {
           <div className="flex items-center gap-2.5">
             <span className="text-2xl">🗓️</span>
             <span className="text-lg font-extrabold tracking-tight bg-gradient-to-r from-violet-400 to-purple-200 bg-clip-text text-transparent">
-              Calendar Todo
+               Todo
             </span>
           </div>
 
