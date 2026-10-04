@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Calendar from '../components/Calendar';
 import { useTodos } from '../hooks/useTodos';
 import { todoApi } from '../api/todoApi';
@@ -6,16 +6,39 @@ import {
   getTodayDateKey,
   formatDisplayDate,
   formatMonthKey,
+  generateRoutineDates,
+  formatTime12Hour,
 } from '../utils/dateUtils';
+
+const ROUTINE_DURATIONS = [
+  { key: '1_month', label: '1 Month', desc: '~30 Days', months: 1 },
+  { key: '3_months', label: '3 Months', desc: '~90 Days', months: 3 },
+  { key: '6_months', label: '6 Months', desc: '~180 Days', months: 6 },
+];
+
+const TIME_PRESETS = [
+  { label: '🌅 7:00 AM', value: '07:00' },
+  { label: '☀️ 9:00 AM', value: '09:00' },
+  { label: '🥗 1:00 PM', value: '13:00' },
+  { label: '🌆 5:00 PM', value: '17:00' },
+  { label: '🌙 8:00 PM', value: '20:00' },
+];
 
 const Todo = () => {
   const todayKey = getTodayDateKey();
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [visibleMonth, setVisibleMonth] = useState(() => formatMonthKey(new Date()));
   const [contributedDates, setContributedDates] = useState({});
-  const [newTask, setNewTask] = useState('');
-  const [filter, setFilter] = useState('all');
 
+  // Task form state
+  const [taskType, setTaskType] = useState('onetime'); // 'onetime' | 'routine'
+  const [newTask, setNewTask] = useState('');
+  const [routineDuration, setRoutineDuration] = useState('1_month');
+  const [taskTime, setTaskTime] = useState('08:00');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [successBanner, setSuccessBanner] = useState(null);
+
+  const [filter, setFilter] = useState('all');
   const inputRef = useRef(null);
 
   // Fetch summary for the visible month
@@ -49,6 +72,7 @@ const Todo = () => {
     loading,
     error,
     setError,
+    fetchTodos,
     addTodo,
     toggleComplete,
     removeTodo,
@@ -125,7 +149,6 @@ const Todo = () => {
       });
     },
     onMutated: () => {
-      // Background sync with database aggregation
       fetchSummary(visibleMonth);
     },
   });
@@ -137,11 +160,59 @@ const Todo = () => {
     }
   }, [selectedDate]);
 
+  // Compute calculated routine range preview
+  const routinePreview = useMemo(() => {
+    if (taskType !== 'routine') return null;
+    const dates = generateRoutineDates(selectedDate, routineDuration);
+    const startDateFormatted = formatDisplayDate(selectedDate);
+    const endDateFormatted = dates.length > 0 ? formatDisplayDate(dates[dates.length - 1]) : '';
+    return {
+      count: dates.length,
+      startDate: startDateFormatted,
+      endDate: endDateFormatted,
+      timeFormatted: formatTime12Hour(taskTime),
+    };
+  }, [taskType, selectedDate, routineDuration, taskTime]);
+
   const handleAddTask = async (e) => {
     if (e) e.preventDefault();
-    const success = await addTodo(newTask);
-    if (success) {
+    const trimmed = newTask.trim();
+    if (!trimmed) {
+      setError('Task text cannot be empty');
+      return;
+    }
+
+    if (taskType === 'routine' && !taskTime) {
+      setError('Please set a specific time for your routine');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    const payload = {
+      text: trimmed,
+      date: selectedDate,
+      time: taskTime || '',
+      taskType,
+      routineDuration: taskType === 'routine' ? routineDuration : '',
+    };
+
+    const res = await addTodo(payload);
+    setIsSubmitting(false);
+
+    if (res) {
       setNewTask('');
+      if (taskType === 'routine') {
+        const durObj = ROUTINE_DURATIONS.find((d) => d.key === routineDuration);
+        setSuccessBanner(
+          `🎉 Routine "${trimmed}" scheduled for ${durObj?.label || 'duration'} (${routinePreview?.count || ''} days) at ${formatTime12Hour(taskTime)}!`
+        );
+        setTimeout(() => setSuccessBanner(null), 6000);
+        // Refresh summary and todos
+        fetchSummary(visibleMonth);
+        fetchTodos();
+      }
     }
   };
 
@@ -158,10 +229,10 @@ const Todo = () => {
       {/* App Header */}
       <header className="mb-8 text-center">
         <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-violet-400 to-purple-200 bg-clip-text text-transparent">
-          🗓️ Calendar Todo Manager
+          🗓️ Calendar Todo & Routine Manager
         </h1>
         <p className="text-slate-400 text-sm mt-1">
-          Plan your days, track milestones, and conquer your goals
+          Plan daily tasks, build routines & habits, and conquer your goals
         </p>
       </header>
 
@@ -199,6 +270,30 @@ const Todo = () => {
             </div>
           </div>
 
+          {/* Success Banner */}
+          {successBanner && (
+            <div className="mb-4 p-3 bg-emerald-500/15 border border-emerald-500/40 rounded-xl text-emerald-300 text-sm flex justify-between items-center animate-fadeIn">
+              <span className="flex items-center gap-2">
+                <svg className="w-5 h-5 shrink-0 text-emerald-400" fill="currentColor" viewBox="0 0 20 20">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+                {successBanner}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSuccessBanner(null)}
+                className="text-emerald-400 hover:text-white text-lg font-bold leading-none ml-2 cursor-pointer"
+                aria-label="Dismiss banner"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           {/* Error Banner */}
           {error && (
             <div className="mb-4 p-3 bg-red-500/15 border border-red-500/40 rounded-xl text-red-300 text-sm flex justify-between items-center animate-fadeIn">
@@ -227,27 +322,181 @@ const Todo = () => {
             </div>
           )}
 
-          {/* Add Task Input Form */}
-          <form onSubmit={handleAddTask} className="flex gap-2 mb-5">
-            <input
-              ref={inputRef}
-              type="text"
-              placeholder={`Add task for ${isToday ? 'today' : selectedDate}...`}
-              value={newTask}
-              onChange={(e) => {
-                setNewTask(e.target.value);
-                if (error) setError(null);
-              }}
-              maxLength={200}
-              className="flex-1 p-3 rounded-xl bg-slate-800 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 text-white placeholder-slate-400 text-sm transition-all"
-            />
-            <button
-              type="submit"
-              className="bg-violet-600 hover:bg-violet-700 active:bg-violet-800 px-5 rounded-xl font-semibold text-sm transition-all cursor-pointer shadow-lg shadow-violet-600/20 shrink-0"
-            >
-              Add
-            </button>
-          </form>
+          {/* Add Task Container */}
+          <div className="mb-6 bg-slate-800/60 border border-slate-700/60 rounded-xl p-4 shadow-sm">
+            {/* Task Type Switcher */}
+            <div className="flex items-center gap-2 mb-3.5 pb-3 border-b border-slate-700/40">
+              <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Type:</span>
+              <div className="inline-flex p-1 bg-slate-900/80 rounded-lg border border-slate-700/60">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTaskType('onetime');
+                    if (error) setError(null);
+                  }}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                    taskType === 'onetime'
+                      ? 'bg-violet-600 text-white shadow-md shadow-violet-600/30'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span>⚡</span> One-time Task
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTaskType('routine');
+                    if (error) setError(null);
+                  }}
+                  className={`px-3 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer flex items-center gap-1.5 ${
+                    taskType === 'routine'
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md shadow-purple-600/30'
+                      : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <span>🔄</span> Routine (Recurring)
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleAddTask} className="space-y-3.5">
+              {/* Task Text Input */}
+              <div className="flex gap-2">
+                <input
+                  ref={inputRef}
+                  type="text"
+                  placeholder={
+                    taskType === 'routine'
+                      ? 'Routine name (e.g., Morning Workout, Daily Code Review)...'
+                      : `Add task for ${isToday ? 'today' : selectedDate}...`
+                  }
+                  value={newTask}
+                  onChange={(e) => {
+                    setNewTask(e.target.value);
+                    if (error) setError(null);
+                  }}
+                  maxLength={200}
+                  className="flex-1 p-3 rounded-xl bg-slate-900 border border-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500 text-white placeholder-slate-400 text-sm transition-all"
+                />
+
+                {taskType === 'onetime' && (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="bg-violet-600 hover:bg-violet-700 active:bg-violet-800 disabled:opacity-50 px-5 rounded-xl font-semibold text-sm transition-all cursor-pointer shadow-lg shadow-violet-600/20 shrink-0 flex items-center gap-1.5"
+                  >
+                    {isSubmitting ? (
+                      <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      '+ Add'
+                    )}
+                  </button>
+                )}
+              </div>
+
+              {/* Routine Options */}
+              {taskType === 'routine' && (
+                <div className="space-y-3 pt-1 animate-fadeIn">
+                  {/* Duration Selector */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                      <span>⏱️ Repeat Duration:</span>
+                      <span className="text-[11px] text-slate-400">(How long should this routine repeat?)</span>
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {ROUTINE_DURATIONS.map((dur) => (
+                        <button
+                          key={dur.key}
+                          type="button"
+                          onClick={() => setRoutineDuration(dur.key)}
+                          className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                            routineDuration === dur.key
+                              ? 'bg-purple-900/40 border-purple-500 text-white shadow-sm shadow-purple-500/20 ring-1 ring-purple-500'
+                              : 'bg-slate-900/60 border-slate-700/60 text-slate-400 hover:border-slate-600 hover:text-slate-200'
+                          }`}
+                        >
+                          <div className="text-xs font-bold">{dur.label}</div>
+                          <div className="text-[10px] text-purple-300/80 mt-0.5">{dur.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Set Time (Mandatory for routine) */}
+                  <div>
+                    <label className="block text-xs font-medium text-slate-300 mb-1.5 flex items-center gap-1.5">
+                      <span>⏰ Set Time:</span>
+                      <span className="text-[11px] text-purple-300 font-semibold">(Scheduled time of day)</span>
+                    </label>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="relative">
+                        <input
+                          type="time"
+                          value={taskTime}
+                          onChange={(e) => setTaskTime(e.target.value)}
+                          required
+                          className="bg-slate-900 border border-slate-700 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 text-white rounded-lg px-3 py-1.5 text-xs font-medium outline-none cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Quick Presets */}
+                      <div className="flex flex-wrap gap-1.5">
+                        {TIME_PRESETS.map((preset) => (
+                          <button
+                            key={preset.value}
+                            type="button"
+                            onClick={() => setTaskTime(preset.value)}
+                            className={`px-2 py-1 rounded-md text-[11px] font-medium transition-all cursor-pointer ${
+                              taskTime === preset.value
+                                ? 'bg-purple-600 text-white shadow-sm'
+                                : 'bg-slate-900/80 text-slate-400 hover:text-slate-200 hover:bg-slate-700/60'
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Summary & Submit Routine */}
+                  {routinePreview && (
+                    <div className="p-3 bg-purple-950/40 border border-purple-500/30 rounded-xl text-xs text-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <div className="font-semibold text-purple-100 flex items-center gap-1.5">
+                          <span>📅 Schedule Summary:</span>
+                        </div>
+                        <p className="text-[11px] text-purple-300/90 mt-0.5">
+                          Daily from <strong className="text-white">{routinePreview.startDate}</strong> to{' '}
+                          <strong className="text-white">{routinePreview.endDate}</strong> at{' '}
+                          <strong className="text-amber-300">{routinePreview.timeFormatted}</strong> ({routinePreview.count} total tasks)
+                        </p>
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 active:from-purple-700 active:to-indigo-700 disabled:opacity-50 px-5 py-2 rounded-xl font-bold text-xs text-white transition-all cursor-pointer shadow-lg shadow-purple-600/30 shrink-0 flex items-center justify-center gap-1.5"
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Scheduling...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>✨</span>
+                            <span>Create Routine</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </form>
+          </div>
 
           {/* Filters & Actions Bar */}
           <div className="flex flex-wrap justify-between items-center gap-2 mb-4 text-sm">
@@ -301,13 +550,15 @@ const Todo = () => {
                   <p className="text-xs text-slate-500 mt-1">
                     {filter !== 'all'
                       ? `Try switching from the "${filter}" filter`
-                      : 'Type a task above and press Enter to add one'}
+                      : 'Create a one-time task or recurring routine above'}
                   </p>
                 </li>
               )}
 
               {filteredTasks.map((task, index) => {
                 const taskId = task._id || task.id;
+                const isRoutineTask = task.taskType === 'routine' || Boolean(task.routineDuration);
+
                 return (
                   <li
                     key={taskId}
@@ -317,7 +568,7 @@ const Todo = () => {
                         : 'bg-slate-800/90 border-slate-700/60 hover:border-slate-600 shadow-sm'
                     }`}
                   >
-                    {/* Toggle Completion */}
+                    {/* Toggle Completion & Task Details */}
                     <button
                       type="button"
                       onClick={() => toggleComplete(taskId)}
@@ -346,15 +597,43 @@ const Todo = () => {
                           </svg>
                         )}
                       </span>
-                      <span
-                        className={`text-sm ${
-                          task.completed
-                            ? 'line-through text-slate-500'
-                            : 'text-slate-100 font-medium'
-                        }`}
-                      >
-                        {task.text}
-                      </span>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`text-sm ${
+                            task.completed
+                              ? 'line-through text-slate-500'
+                              : 'text-slate-100 font-medium'
+                          }`}
+                        >
+                          {task.text}
+                        </span>
+
+                        {/* Scheduled Time Badge */}
+                        {task.time && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-slate-900/90 text-amber-300 border border-amber-500/30 shrink-0">
+                            <span>⏰</span>
+                            <span>{formatTime12Hour(task.time)}</span>
+                          </span>
+                        )}
+
+                        {/* Routine Badge */}
+                        {isRoutineTask && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-950/80 text-purple-300 border border-purple-500/30 shrink-0">
+                            <span>🔄</span>
+                            <span>
+                              Routine{' '}
+                              {task.routineDuration === '1_month'
+                                ? '1M'
+                                : task.routineDuration === '3_months'
+                                ? '3M'
+                                : task.routineDuration === '6_months'
+                                ? '6M'
+                                : ''}
+                            </span>
+                          </span>
+                        )}
+                      </div>
                     </button>
 
                     {/* Task Actions */}

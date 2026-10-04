@@ -4,22 +4,52 @@ import { authApi } from '../api/authApi';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
+  // Initialize user from localStorage for instant name & profile display
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem('user');
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [loading, setLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('user');
+    } catch {
+      return false;
+    }
+  });
   const [error, setError] = useState(null);
 
-  // Check current session on initial load
+  // Check current session in background without dropping saved user
   const checkAuth = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await authApi.getMe();
-      if (res.success && res.user) {
-        setUser(res.user);
-      } else {
-        setUser(null);
-      }
-    } catch {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+
+    if (!savedToken && !savedUser) {
       setUser(null);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      if (savedToken) {
+        const res = await authApi.getMe();
+        if (res.success && res.user) {
+          setUser(res.user);
+          localStorage.setItem('user', JSON.stringify(res.user));
+        }
+      }
+    } catch (err) {
+      console.warn('Session check warning:', err.message);
+      // If token is explicitly rejected and no saved user, clear
+      if ((err.status === 401 || err.status === 403) && !savedUser) {
+        setUser(null);
+        localStorage.removeItem('user');
+        localStorage.removeItem('token');
+      }
     } finally {
       setLoading(false);
     }
@@ -35,6 +65,10 @@ export const AuthProvider = ({ children }) => {
       const res = await authApi.signup({ name, email, password });
       if (res.success && res.user) {
         setUser(res.user);
+        localStorage.setItem('user', JSON.stringify(res.user));
+        if (res.token) {
+          localStorage.setItem('token', res.token);
+        }
         return { success: true };
       }
       return { success: false, message: 'Signup failed' };
@@ -51,6 +85,10 @@ export const AuthProvider = ({ children }) => {
       const res = await authApi.login({ email, password });
       if (res.success && res.user) {
         setUser(res.user);
+        localStorage.setItem('user', JSON.stringify(res.user));
+        if (res.token) {
+          localStorage.setItem('token', res.token);
+        }
         return { success: true };
       }
       return { success: false, message: 'Login failed' };
@@ -68,6 +106,8 @@ export const AuthProvider = ({ children }) => {
       console.error('Logout error:', err);
     } finally {
       setUser(null);
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
     }
   };
 

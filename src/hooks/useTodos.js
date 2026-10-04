@@ -49,13 +49,19 @@ export const useTodos = (selectedDate, options = {}) => {
   }, [fetchTodos]);
 
   /**
-   * Add a new task
+   * Add a new task or routine
+   * @param {string|{ text: string, time?: string, taskType?: string, routineDuration?: string }} payload
    */
-  const addTodo = async (text) => {
-    const trimmed = text.trim();
+  const addTodo = async (payload) => {
+    const isObject = typeof payload === 'object' && payload !== null;
+    const trimmed = (isObject ? payload.text : payload || '').trim();
     if (!trimmed) return false;
 
-    // Check duplicate locally for immediate feedback
+    const time = isObject ? payload.time || '' : '';
+    const taskType = isObject ? payload.taskType || 'onetime' : 'onetime';
+    const routineDuration = isObject ? payload.routineDuration || '' : '';
+
+    // Check duplicate locally on this date
     if (todos.some((t) => t.text.toLowerCase() === trimmed.toLowerCase())) {
       setError('A task with this text already exists on this date.');
       return false;
@@ -72,12 +78,15 @@ export const useTodos = (selectedDate, options = {}) => {
       const response = await todoApi.createTodo({
         text: trimmed,
         date: selectedDate,
+        time,
+        taskType,
+        routineDuration,
       });
 
       if (response.success && response.data) {
         setTodos((prev) => [...prev, response.data]);
         if (onMutated) onMutated();
-        return true;
+        return response;
       }
       return false;
     } catch (err) {

@@ -142,3 +142,48 @@ export const addDaysToKey = (dateKey, daysDelta) => {
   const date = new Date(year, monthIndex, day + daysDelta);
   return formatDateKey(date);
 };
+
+/**
+ * Generate all date keys (YYYY-MM-DD) for a given routine duration from a start date
+ * @param {string} startDateKey "YYYY-MM-DD"
+ * @param {string} duration "1_month" | "3_months" | "6_months"
+ * @returns {string[]}
+ */
+export const generateRoutineDates = (startDateKey, duration) => {
+  const dates = [];
+  const { year, monthIndex, day } = parseDateKey(startDateKey);
+  const start = new Date(year, monthIndex, day);
+
+  let monthsToAdd = 1;
+  if (duration === '3_months') monthsToAdd = 3;
+  else if (duration === '6_months') monthsToAdd = 6;
+
+  const end = new Date(year, monthIndex + monthsToAdd, day);
+
+  const cur = new Date(start);
+  while (cur <= end) {
+    dates.push(formatDateKey(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+};
+
+/**
+ * Format a 24-hour time string "HH:mm" to user friendly 12-hour format "h:mm A"
+ * @param {string} timeStr "HH:mm" or "HH:mm:ss"
+ * @returns {string}
+ */
+export const formatTime12Hour = (timeStr) => {
+  if (!timeStr) return '';
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return timeStr;
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  if (isNaN(hours)) return timeStr;
+
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // '0' hours is '12'
+  return `${hours}:${minutes} ${ampm}`;
+};
+

@@ -6,5 +6,15 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [
     tailwindcss(),
-    react()],
+    react()
+  ],
+  server: {
+    proxy: {
+      '/api': {
+        target: 'https://to-do-ai3p.onrender.com',
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+  },
 })

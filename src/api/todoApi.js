@@ -1,14 +1,16 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://api-to-do-61bk.onrender.com/api';
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Generic request helper with credentials and JSON error handling
  */
 const request = async (endpoint, options = {}) => {
   const url = `${BASE_URL}${endpoint}`;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   const config = {
     credentials: 'include', // Ensure cookies are sent with cross-origin requests
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
     ...options,
@@ -45,13 +47,13 @@ export const todoApi = {
   getTodos: (date) => request(`/todos?date=${encodeURIComponent(date)}`),
 
   /**
-   * Create a new task for a date
-   * @param {{ text: string, date: string }} payload
+   * Create a new task or routine
+   * @param {{ text: string, date: string, time?: string, taskType?: string, routineDuration?: string }} payload
    */
-  createTodo: ({ text, date }) =>
+  createTodo: (payload) =>
     request('/todos', {
       method: 'POST',
-      body: JSON.stringify({ text, date }),
+      body: JSON.stringify(payload),
     }),
 
   /**

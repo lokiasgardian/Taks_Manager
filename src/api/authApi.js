@@ -1,14 +1,16 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'https://api-to-do-61bk.onrender.com/api';
+const BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 /**
  * Generic request helper with credentials and JSON error handling
  */
 const request = async (endpoint, options = {}) => {
   const url = `${BASE_URL}${endpoint}`;
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   const config = {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
     ...options,

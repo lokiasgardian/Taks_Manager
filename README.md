@@ -104,7 +104,7 @@ SUPERADMIN_PASSWORD=SuperAdminPass123
 ### 2. Frontend (`.env`)
 
 ```env
-VITE_API_URL=https://api-to-do-61bk.onrender.com/api
+VITE_API_URL=https://to-do-ai3p.onrender.com/api
 ```
 
 ---
@@ -118,7 +118,7 @@ npm install
 npm run seed:admin
 npm run dev
 ```
-*Server starts on `https://api-to-do-61bk.onrender.com`.*
+*Server starts on `https://to-do-ai3p.onrender.com/`.*
 
 ### 2. Setup Frontend
 In the root directory:
