@@ -1,0 +1,35 @@
+### Variables
+@baseUrl = http://localhost:5000/api
+@testDate = 2026-10-04
+@testMonth = 2026-10
+
+### 1. Health Check
+GET {{baseUrl}}/health
+
+### 2. Super Admin Login
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "superadmin@todo.local",
+  "password": "SuperAdminPass123"
+}
+
+### 3. Super Admin Overview Stats
+GET {{baseUrl}}/admin/stats
+
+### 4. Super Admin Daily Usage (Last 30 days default)
+GET {{baseUrl}}/admin/usage/daily
+
+### 5. Super Admin Users List (Paginated with task counts)
+GET {{baseUrl}}/admin/users?page=1&limit=10
+
+### 6. Toggle User Active Status (Replace with a user ID)
+@userId = 650000000000000000000001
+PATCH {{baseUrl}}/admin/users/{{userId}}/status
+Content-Type: application/json
+
+{
+  "isActive": false
+}
