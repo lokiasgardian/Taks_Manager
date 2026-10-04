@@ -2,6 +2,7 @@ import React,{useState,useEffect} from 'react'
 
 const Todo = () => {
     const [tasks, setTasks] = useState(() => {
+      // chech if there is any tasks in local store if there then return them
     try {
       const stored = localStorage.getItem("tasks");
       return stored ? JSON.parse(stored) : [];
@@ -9,10 +10,12 @@ const Todo = () => {
       return [];
     }
   });
-
+ // to collect tasks form the input
   const [newTask, setNewTask] = useState("");
+  // to seperate the completed and not completed tasks
   const [filter, setFilter] = useState("all");
 
+  //store the task in localStorage
   useEffect(() => {
     localStorage.setItem("tasks", JSON.stringify(tasks));
   }, [tasks]);
@@ -21,6 +24,7 @@ const Todo = () => {
     const trimmed = newTask.trim();
     if (!trimmed) return;
 
+    // if task already exist then don't add to task
     if (tasks.some((t) => t.text === trimmed)) return;
 
     const taskObj = {
@@ -77,7 +81,7 @@ const Todo = () => {
     return true;
   });
   return (
-     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-5">
+     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 flex items-center justify-center p-5 max-sm">
       <div className="w-full max-w-xl bg-slate-900 shadow-xl rounded-2xl p-6 text-white">
         <h1 className="text-3xl font-bold text-center mb-6">
           🚀 Todo List
