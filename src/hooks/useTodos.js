@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { todoApi } from '../api/todoApi';
+import { generateRoutineDates } from '../utils/dateUtils';
 
 /**
  * Custom hook to manage todos for a selected date with optimistic updates
@@ -83,8 +84,36 @@ export const useTodos = (selectedDate, options = {}) => {
         routineDuration,
       });
 
-      if (response.success && response.data) {
-        setTodos((prev) => [...prev, response.data]);
+      if (response.success) {
+        if (response.data) {
+          setTodos((prev) => [...prev, response.data]);
+        }
+
+        // If routine was created, ensure all subsequent days in the range are populated
+        if (taskType === 'routine' && routineDuration) {
+          // If the backend didn't bulk-create (older deployment), generate remaining dates on client
+          if (!response.totalDays || response.totalDays <= 1) {
+            const allDates = generateRoutineDates(selectedDate, routineDuration);
+            const remainingDates = allDates.slice(1);
+            // Fire creation for remaining dates in batches
+            Promise.all(
+              remainingDates.map((d) =>
+                todoApi
+                  .createTodo({
+                    text: trimmed,
+                    date: d,
+                    time,
+                    taskType: 'routine',
+                    routineDuration,
+                  })
+                  .catch(() => null)
+              )
+            ).then(() => {
+              if (onMutated) onMutated();
+            });
+          }
+        }
+
         if (onMutated) onMutated();
         return response;
       }

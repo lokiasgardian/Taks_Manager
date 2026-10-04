@@ -204,14 +204,25 @@ const Todo = () => {
     if (res) {
       setNewTask('');
       if (taskType === 'routine') {
+        const dates = generateRoutineDates(selectedDate, routineDuration);
+        setContributedDates((prev) => {
+          const next = { ...prev };
+          dates.forEach((d) => {
+            const cur = next[d] || { total: 0, completed: 0 };
+            next[d] = { total: cur.total + 1, completed: cur.completed };
+          });
+          return next;
+        });
+
         const durObj = ROUTINE_DURATIONS.find((d) => d.key === routineDuration);
         setSuccessBanner(
-          `🎉 Routine "${trimmed}" scheduled for ${durObj?.label || 'duration'} (${routinePreview?.count || ''} days) at ${formatTime12Hour(taskTime)}!`
+          `🎉 Routine "${trimmed}" scheduled for ${durObj?.label || 'duration'} (${dates.length} days) at ${formatTime12Hour(taskTime)}!`
         );
         setTimeout(() => setSuccessBanner(null), 6000);
-        // Refresh summary and todos
-        fetchSummary(visibleMonth);
-        fetchTodos();
+        setTimeout(() => {
+          fetchSummary(visibleMonth);
+          fetchTodos();
+        }, 500);
       }
     }
   };
